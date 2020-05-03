@@ -1,0 +1,3 @@
+#Each line is a different account
+#name:password
+#if your account do not have a password, both name or name: will work
