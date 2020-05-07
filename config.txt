@@ -1,0 +1,10 @@
+#Default config file, change it for your needs
+
+#write a name to attack the same ennemy each time, or leave it blanc to choose randomly
+ennemy=
+
+#if this option is true, it checks if it can buy the access to Missions (which is worth over time)
+buyMission=False
+
+#Select the log level (1 = minimal, 2 = full) [WIP]
+logLevel=2
