@@ -1,9 +1,22 @@
-import requests as rq
+try:
+	import requests as rq
+except ImportError:
+	print("This app needs the \"requests\" to be installed on your system. Please install it.")
 import time
 import re
+import sys
+
+def getIntInput(t):
+	tmp = input(t)
+	if not tmp.isdigit():
+		return None
+	return int(tmp)
 
 def connect(s,name, passwd):
-	r = s.post("http://{}.minitroopers.fr/login".format(name.replace(' ','-')), data=({'login':name, 'pass':passwd} if passwd else {"login":name})) #Truthfully, name doesn't have to be in url
+	try:
+		r = s.post("http://{}.minitroopers.fr/login".format(name.replace(' ','-')), data=({'login':name, 'pass':passwd} if passwd else {"login":name})) #Truthfully, name doesn't have to be in url
+	except:
+		return None
 	if "correct" in r.history[0].cookies["ssid"]:
 		return None
 	return r
@@ -78,15 +91,21 @@ def getCredits(r):
 	money = int(r.content[start+1:end])
 	return money
 
-def farmPlayer(name, passwd,D):
+def farmPlayer(name, passwd, D):
 	s = rq.Session()
 	gain = 0
 	print("--------\nPlayer: " + name, flush = True)
+	if passwd=="#MANUALPASS":
+		print("This account is locked by a password. Please modify it manually if you want to farm this account.")
+		return
 	r = connect(s, name, passwd)
 	if not r:
-		print("Incorrect playername or password: {}, {}".format(name, passwd))
+		print("Incorrect playername or password: {}, {}.\nMaybe the password isn't written.".format(name, passwd if passwd else "<No password>"))
 		return
 	chk = getChk(r)
+	if not b"/b/opp" in r.content:
+		print("This account needs a password !")
+		return
 	credits = getCredits(r)
 	gain += playAllAttacks(s, r, chk, D["ennemy"]) if "ennemy" in D else playAllAttacks(s, r, chk)
 	print() #Get to the next line
@@ -104,34 +123,18 @@ def farmPlayer(name, passwd,D):
 		gain += playRaid(s, r, chk)
 	else: 
 		print("Raid: Not unlocked.")
-	print("\n{} total gain: {} credits (=> {} total).\n\n".format(name,gain,credits+gain))
+	print("\n{} total gain: {} credits (=> {} total).\n".format(name,gain,credits+gain))
 
 
-def farmList(loc):
-	Players=[]
+def farmList():
 	D = readconfigfile()
-	try:
-		with open("mtbotlist.txt",'r') as f:
-			print("[+] Bot list found.")
-			for line in f:
-				if line[0] == '#':
-					continue
-				start = line.find(":")
-				line = line.strip()
-				Players.append((line[:start],line[start+1:]) if start != -1 else (line,""))
-			print("[+] Bot list read. ({} accounts read)".format(len(Players)) if len(Players)>0 else "[!] Bot list empty. Please add your accounts to the list")
-	except:
-		print("[!] Bot list not found.")
-		try:
-			with open("mtbotlist.txt",'w') as f:
-				print("[+] Created default bot list (mtbotlist.txt). Please add your accounts to the list.")
-		except:
-			print("[!] Could not create file, please add it manually or grant rights to this bot")
+
+	Players = getAccounts()	
 
 	for n, p in Players:
 		farmPlayer(n,p,D)
 
-	print("[END] Bot ended sucessfully.")
+	print("[END] Farm ended sucessfully.")
 
 
 def readconfigfile():
@@ -154,7 +157,7 @@ def readconfigfile():
 				f.write("ennemy=\n\n")
 				f.write("#if this option is true, it checks if it can buy the access to Missions (which is worth over time)\n")
 				f.write("buyMission=False\n\n")
-				f.write("#Select the log level (1 = minimal, 2 = full)\n")
+				f.write("#Select the log level (1 = minimal, 2 = full) [WIP]\n")
 				f.write("logLevel=2")
 		except Exception as e:
 			print("[!!!] Could not create a config file. Error: "+e)
@@ -163,3 +166,175 @@ def readconfigfile():
 	else:
 		print("[+] Parameters read from config file.")
 	return D
+
+def getSubAccounts(s,r):
+	a = s.get(r.url[:-2]+"history")
+	if a.url[-2:] == "hq":
+		print(": this account needs a password. Please add it manually",end = '')
+		return None
+	start = a.content.find(b"<td class=\"right\"><h2>")
+	end = a.content.find(b"</td>",start)
+	L = re.findall(r"http:\/\/((?!data\.).+?)\.minitroopers\.fr",a.content[start:end].decode())
+	return L
+
+def recursiveAllAccounts(s,r,indent):
+	node =  	' ├╴'
+	vertical = 	' │ '
+	last =  	' └╴'
+	space = 	'   '
+	children = []
+	sub = getSubAccounts(s,r)
+	if sub == None:
+		return None
+	for i,name in enumerate(sub):
+		print("\n",indent,node if i != len(sub)-1 else last,name,end='', sep='')
+		tmp = rq.session()
+		L = recursiveAllAccounts(tmp,connect(tmp, name, ""),indent + (vertical if i != len(sub)-1 else space))
+		if L == None:
+			children+=[(name,"#MANUALPASS#")]
+		else:
+			children += [(name,"")]
+			children += L
+	return children
+
+def addToList(L):
+	if not L:
+		return
+	T = list(set(L))
+	names = []
+	try:
+		with open("mtbotlist.txt",'r+') as f:
+			for line in f:
+				name = line.strip().split(':')[0]
+				if not name:
+					continue
+				names.append(name)
+
+			for player in T:
+				if player[0] in names:
+					continue
+				f.write("\n{}:{}".format(player[0],player[1]))
+		print("Sucessfully added {} accounts to the list!\nPlease make sure to write passwords of the accounts that have one.".format(len(T)))
+	except Exception as e:
+		print("[!!!] Could not add to the list. Error: "+e)
+
+def Menu():
+	banner = r""" _____ _     _ _       _   _                      ___     ___ 
+|     |_|___|_| |_ ___| |_| |_ ___ ___ ___    _ _|_  |   |   |
+| | | | |   | | . | . |  _|  _| -_|  _|_ -|  | | |_| |_ _| | |
+|_|_|_|_|_|_|_|___|___|_| |_| |___|_| |___|   \_/|_____|_|___|"""
+
+	mainOptions="""
+1) Add a player to the list
+2) Farm an account
+3) Farm all accounts
+99) Quit"""
+
+
+	print(banner)
+	config = readconfigfile()
+
+	while True:
+		print(mainOptions)
+		option = getIntInput("Select an option: ") #Case against empty strings
+		if option == 1:
+			AddPlayerOption()
+		if option == 2:
+			while True:
+				sub = getIntInput("""\nDow you want to farm:
+1) From input
+2) From the list
+99) Return
+Select an option: """)
+				if sub == 1:
+					name = input("\nName: ")
+					passwd = input("Password (empty if none): ")
+					farmPlayer(name, passwd, config)
+					break
+				if sub == 2:
+					print()
+					Players = getAccounts()
+					while True:
+						print()
+						for i, player in enumerate(Players):
+							print("{}) {}".format(i+1,player[0]))
+						print("{}) {}".format(len(Players)+1, "Return"))
+						n = getIntInput("Select a player: ")
+						if not n:
+							continue
+						n-=1
+						if n in range(len(Players)):
+							farmPlayer(Players[n][0],Players[n][1],config)
+							break
+						if n == len(Players):
+							break
+					break
+				if sub == 99:
+					break
+		if option == 99:
+			break
+		if option == 3:
+			farmList()
+
+def AddPlayerOption():
+	while True:
+		print("""\nDo you want to add:
+1) A single player
+2) A player and its recruits, recursively
+99) Return""")
+		choice = getIntInput("Select an option: ")
+		if not choice:
+			continue
+		
+		if choice == 99:
+			break
+		if choice == 1:
+			name = input("\nName: ")
+			passwd = input("Password (empty if none): ")
+			addToList([(name, passwd),])
+			break
+		if choice == 2:
+			name = input("\nName: ")
+			passwd = input("Password (empty if none): ")
+			s = rq.session()
+			r = connect(s,name,passwd)
+			if not r:
+				print("Invalid user or pass")
+			print(name,end='')
+			acts = recursiveAllAccounts(s,r,'')
+			print()
+			addToList(acts+[(name, passwd)])
+			break
+
+def getAccounts():
+	Players = []
+	try:
+		with open("mtbotlist.txt",'r') as f:
+			print("[+] Bot list found.")
+			for line in f:
+				if line[0] == '#':
+					continue
+				start = line.find(":")
+				line = line.strip()
+				if not line: continue
+				Players.append((line[:start],line[start+1:]) if start != -1 else (line,""))
+			print("[+] Bot list read. ({} accounts read)".format(len(Players)) if len(Players)>0 else "[!] Bot list empty. Please add your accounts to the list")
+	except:
+		print("[!] Bot list not found.")
+		try:
+			with open("mtbotlist.txt",'w') as f:
+				f.write("#Each line is a different account\n#name:password\n#if your account do not have a password, both name or name: will work")
+				print("[+] Created default bot list (mtbotlist.txt). Please add your accounts to the list.")
+		except:
+			print("[!] Could not create file, please add it manually or grant rights to this bot")
+	
+	return Players
+
+
+def GetUpgradeCost(actualRank): #needs the Actual level of the trooper.
+	return int(actualRank**2.5)
+
+if __name__ == '__main__':
+	Menu()
+	if "-f" in sys.argv:
+		pass
