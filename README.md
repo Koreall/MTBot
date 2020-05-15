@@ -27,5 +27,6 @@ It needs rights to read the files in its directory.
 
 ## Warnings
 
-The script was never tested on an account which already had actions performed for the day. Please only use clean accounts. (A warning may be implemented later.)
+The script was never tested on an account which already had actions performed for the day. Please only use clean accounts. (A warning might be implemented later)
+
 Furthermore, it was only tested on french versions of the website, please let me know if it crashes and you use another language.

@@ -95,16 +95,16 @@ def farmPlayer(name, passwd, D):
 	s = rq.Session()
 	gain = 0
 	print("--------\nPlayer: " + name, flush = True)
-	if passwd=="#MANUALPASS":
+	if passwd=="#MANUALPASS#":
 		print("This account is locked by a password. Please modify it manually if you want to farm this account.")
 		return
 	r = connect(s, name, passwd)
 	if not r:
-		print("Incorrect playername or password: {}, {}.\nMaybe the password isn't written.".format(name, passwd if passwd else "<No password>"))
+		print("Incorrect playername or password: {}, {}.\n".format(name, passwd if passwd else "<No password>"))
 		return
 	chk = getChk(r)
 	if not b"/b/opp" in r.content:
-		print("This account needs a password !")
+		print("This account needs a password ! (or it was already farmed today)")
 		return
 	credits = getCredits(r)
 	gain += playAllAttacks(s, r, chk, D["ennemy"]) if "ennemy" in D else playAllAttacks(s, r, chk)
@@ -205,15 +205,15 @@ def addToList(L):
 	try:
 		with open("mtbotlist.txt",'r+') as f:
 			for line in f:
-				name = line.strip().split(':')[0]
+				name = line.strip().split(':')[0].lower().replace(' ','-')
 				if not name:
 					continue
 				names.append(name)
 
 			for player in T:
-				if player[0] in names:
+				if player[0].lower().replace(' ','-') in names:
 					continue
-				f.write("\n{}:{}".format(player[0],player[1]))
+				f.write("\n{}:{}".format(player[0].lower().replace(' ','-'),player[1]))
 		print("Sucessfully added {} accounts to the list!\nPlease make sure to write passwords of the accounts that have one.".format(len(T)))
 	except Exception as e:
 		print("[!!!] Could not add to the list. Error: "+e)
